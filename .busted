@@ -1,0 +1,34 @@
+return {
+	_all = {
+		coverage = false,
+		lpath = "lua/?.lua;lua/?/init.lua",
+		pattern = "spec%.lua$",
+		-- lua = "luajit",
+		ROOT = { "spec/" },
+	},
+	default = {
+		tags = {
+			"tests",
+			"ulf",
+			"ulf.vim",
+		},
+		output = "htest",
+		verbose = true,
+		ROOT = { "spec/tests" },
+	},
+	tests = {
+		tags = { "tests", "unit", "integration" },
+		ROOT = { "spec/tests" },
+		verbose = true,
+	},
+	["ulf"] = {
+		tags = "ulf",
+		ROOT = { "spec/tests" },
+		verbose = true,
+	},
+	["ulf.vim"] = {
+		tags = "ulf.vim",
+		ROOT = { "spec/tests" },
+		verbose = true,
+	},
+}
