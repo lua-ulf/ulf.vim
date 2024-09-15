@@ -6,7 +6,31 @@ local M = setmetatable({}, {
 	end,
 })
 
+local uv = vim and uv or require("luv")
+local tbl_contains = vim.tbl_contains
+local tbl_filter = vim.tbl_filter
+local uri_to_fname = vim.uri_to_fname
+local is_win = LazyVim.is_win
+local fs = {}
+fs.dirname = vim.fs.dirname
+fs.find = vim.fs.find
+
+local pesc = vim.pesc
+local Vim = {
+	api = {},
+	g = {},
+}
+Vim.api.nvim_buf_get_name = vim.api.nvim_buf_get_name
+Vim.g.root_spec = vim.g.root_spec
+Vim.api.nvim_get_current_buf = vim.api.nvim_get_current_buf
+Vim.fn.fnamemodify = vim.fn.fnamemodify
+Vim.api.nvim_create_user_command = vim.api.nvim_create_user_command
+Vim.api.nvim_create_augroup = vim.api.nvim_create_augroup
+Vim.inspect = vim.inspect
+Vim.api.nvim_create_autocmd = vim.api.nvim_create_autocmd
+
 local Path = require("ulf.lib.path")
+local Lsp = LazyVim.lsp
 
 ---@class ulf.vim.project_root.LazyRoot
 ---@field paths string[]
@@ -22,7 +46,7 @@ M.spec = { "lsp", { ".git", "lua" }, "cwd" }
 M.detectors = {}
 
 function M.detectors.cwd()
-	return { vim.uv.cwd() }
+	return { uv.cwd() }
 end
 
 function M.detectors.lsp(buf)
@@ -31,16 +55,16 @@ function M.detectors.lsp(buf)
 		return {}
 	end
 	local roots = {} ---@type string[]
-	for _, client in pairs(LazyVim.lsp.get_clients({ bufnr = buf })) do
+	for _, client in pairs(Lsp.get_clients({ bufnr = buf })) do
 		local workspace = client.config.workspace_folders
 		for _, ws in pairs(workspace or {}) do
-			roots[#roots + 1] = vim.uri_to_fname(ws.uri)
+			roots[#roots + 1] = uri_to_fname(ws.uri)
 		end
 		if client.root_dir then
 			roots[#roots + 1] = client.root_dir
 		end
 	end
-	return vim.tbl_filter(
+	return tbl_filter(
 		---@param path string
 		function(path)
 			---@type string
@@ -54,34 +78,34 @@ end
 ---@param patterns string[]|string
 function M.detectors.pattern(buf, patterns)
 	patterns = type(patterns) == "string" and { patterns } or patterns
-	local path = M.bufpath(buf) or vim.uv.cwd()
-	local pattern = vim.fs.find(function(name)
+	local path = M.bufpath(buf) or uv.cwd()
+	local pattern = fs.find(function(name)
 		for _, p in ipairs(patterns) do
 			if name == p then
 				return true
 			end
-			if p:sub(1, 1) == "*" and name:find(vim.pesc(p:sub(2)) .. "$") then
+			if p:sub(1, 1) == "*" and name:find(pesc(p:sub(2)) .. "$") then
 				return true
 			end
 		end
 		return false
 	end, { path = path, upward = true })[1]
-	return pattern and { vim.fs.dirname(pattern) } or {}
+	return pattern and { fs.dirname(pattern) } or {}
 end
 
 function M.bufpath(buf)
-	return M.realpath(vim.api.nvim_buf_get_name(assert(buf)))
+	return M.realpath(Vim.api.nvim_buf_get_name(assert(buf)))
 end
 
 function M.cwd()
-	return M.realpath(vim.uv.cwd()) or ""
+	return M.realpath(uv.cwd()) or ""
 end
 
 function M.realpath(path)
 	if path == "" or path == nil then
 		return nil
 	end
-	path = vim.uv.fs_realpath(path) or path
+	path = uv.fs_realpath(path) or path
 	return Path.norm(path)
 end
 
@@ -101,8 +125,8 @@ end
 ---@param opts? { buf?: number, spec?: ulf.vim.project_root.LazyRootSpec[], all?: boolean }
 function M.detect(opts)
 	opts = opts or {}
-	opts.spec = opts.spec or type(vim.g.root_spec) == "table" and vim.g.root_spec or M.spec
-	opts.buf = (opts.buf == nil or opts.buf == 0) and vim.api.nvim_get_current_buf() or opts.buf
+	opts.spec = opts.spec or type(Vim.g.root_spec) == "table" and Vim.g.root_spec or M.spec
+	opts.buf = (opts.buf == nil or opts.buf == 0) and Vim.api.nvim_get_current_buf() or opts.buf
 
 	local ret = {} ---@type ulf.vim.project_root.LazyRoot[]
 	for _, spec in ipairs(opts.spec) do
@@ -112,7 +136,7 @@ function M.detect(opts)
 		local roots = {} ---@type string[]
 		for _, p in ipairs(paths) do
 			local pp = M.realpath(p)
-			if pp and not vim.tbl_contains(roots, pp) then
+			if pp and not tbl_contains(roots, pp) then
 				roots[#roots + 1] = pp
 			end
 		end
@@ -130,7 +154,7 @@ function M.detect(opts)
 end
 
 function M.info()
-	local spec = type(vim.g.root_spec) == "table" and vim.g.root_spec or M.spec
+	local spec = type(Vim.g.root_spec) == "table" and Vim.g.root_spec or M.spec
 
 	local roots = M.detect({ all = true })
 	local lines = {} ---@type string[]
@@ -146,17 +170,17 @@ function M.info()
 		end
 	end
 	lines[#lines + 1] = "```lua"
-	lines[#lines + 1] = "vim.g.root_spec = " .. vim.inspect(spec)
+	lines[#lines + 1] = "vim.g.root_spec = " .. Vim.inspect(spec)
 	lines[#lines + 1] = "```"
 	LazyVim.info(lines, { title = "LazyVim Roots" })
-	return roots[1] and roots[1].paths[1] or vim.uv.cwd()
+	return roots[1] and roots[1].paths[1] or uv.cwd()
 end
 
 ---@type table<number, string>
 M.cache = {}
 
 function M.setup()
-	vim.api.nvim_create_user_command("UlfLazyRoot", function()
+	Vim.api.nvim_create_user_command("UlfLazyRoot", function()
 		require("ulf.vim.project_root").info()
 		LazyVim.root.info()
 	end, { desc = "UlfLazyVim roots for the current buffer" })
@@ -164,8 +188,8 @@ function M.setup()
 	-- FIX: doesn't properly clear cache in neo-tree `set_root` (which should happen presumably on `DirChanged`),
 	-- probably because the event is triggered in the neo-tree buffer, therefore add `BufEnter`
 	-- Maybe this is too frequent on `BufEnter` and something else should be done instead??
-	vim.api.nvim_create_autocmd({ "LspAttach", "BufWritePost", "DirChanged", "BufEnter" }, {
-		group = vim.api.nvim_create_augroup("lazyvim_root_cache", { clear = true }),
+	Vim.api.nvim_create_autocmd({ "LspAttach", "BufWritePost", "DirChanged", "BufEnter" }, {
+		group = Vim.api.nvim_create_augroup("lazyvim_root_cache", { clear = true }),
 		callback = function(event)
 			M.cache[event.buf] = nil
 		end,
@@ -181,23 +205,23 @@ end
 ---@return string
 function M.get(opts)
 	opts = opts or {}
-	local buf = opts.buf or vim.api.nvim_get_current_buf()
+	local buf = opts.buf or Vim.api.nvim_get_current_buf()
 	local ret = M.cache[buf]
 	if not ret then
 		local roots = M.detect({ all = false, buf = buf })
-		ret = roots[1] and roots[1].paths[1] or vim.uv.cwd()
+		ret = roots[1] and roots[1].paths[1] or uv.cwd()
 		M.cache[buf] = ret
 	end
 	if opts and opts.normalize then
 		return ret
 	end
-	return LazyVim.is_win() and ret:gsub("/", "\\") or ret
+	return is_win() and ret:gsub("/", "\\") or ret
 end
 
 function M.git()
 	local root = M.get()
-	local git_root = vim.fs.find(".git", { path = root, upward = true })[1]
-	local ret = git_root and vim.fn.fnamemodify(git_root, ":h") or root
+	local git_root = fs.find(".git", { path = root, upward = true })[1]
+	local ret = git_root and Vim.fn.fnamemodify(git_root, ":h") or root
 	return ret
 end
 
