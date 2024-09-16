@@ -1,3 +1,8 @@
+--- TODO: This has been taken from LazyVim
+--- I currently do not have a use case for this. I leave it here
+--- because some parts can be refactored and put into a general
+--- library
+---
 ---@class ulf.vim.project_root
 ---@overload fun(): string
 local M = setmetatable({}, {
@@ -6,11 +11,15 @@ local M = setmetatable({}, {
 	end,
 })
 
+-- imports
+----------------------------------------------------------------------------------
+
 local uv = vim and uv or require("luv")
 local tbl_contains = vim.tbl_contains
 local tbl_filter = vim.tbl_filter
 local uri_to_fname = vim.uri_to_fname
 local is_win = LazyVim.is_win
+
 local fs = {}
 fs.dirname = vim.fs.dirname
 fs.find = vim.fs.find
@@ -32,6 +41,9 @@ Vim.api.nvim_create_autocmd = vim.api.nvim_create_autocmd
 local Path = require("ulf.lib.path")
 local Lsp = LazyVim.lsp
 
+-- exports
+----------------------------------------------------------------------------------
+
 ---@class ulf.vim.project_root.LazyRoot
 ---@field paths string[]
 ---@field spec ulf.vim.project_root.LazyRootSpec
@@ -44,6 +56,9 @@ local Lsp = LazyVim.lsp
 M.spec = { "lsp", { ".git", "lua" }, "cwd" }
 
 M.detectors = {}
+
+-- main
+----------------------------------------------------------------------------------
 
 function M.detectors.cwd()
 	return { uv.cwd() }
